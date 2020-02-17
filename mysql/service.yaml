@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: magento-mysql-service
+  namespace: magento
+  labels:
+    app: magento-mysql
+spec:
+  selector:
+    app: magento-mysql
+  ports: 
+  - name: default-port
+    port: 3306
+    protocol: TCP
+  type: NodePort
