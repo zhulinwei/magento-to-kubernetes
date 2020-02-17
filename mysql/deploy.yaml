@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: magento-mysql
+  namespace: magento
+spec:
+  selector:
+    matchLabels:
+      app: magento-mysql
+  template:
+    metadata:
+      labels:
+        app: magento-mysql
+    spec:
+      containers:
+      - name: magento-mysql
+        image: mysql:5.6
+        ports:
+        - name: default-port
+          containerPort: 3306
+        args: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+        env:
+        - name: MYSQL_DATABASE
+          valueFrom:
+            secretKeyRef:
+              key: MYSQL_DATABASE
+              name: magento-mysql-secret
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              key: MYSQL_USER
+              name: magento-mysql-secret
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: MYSQL_PASSWORD
+              name: magento-mysql-secret
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: MYSQL_ROOT_PASSWORD
+              name: magento-mysql-secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+          limits:
+            cpu: 1000m
+            memory: 2000Mi
+        volumeMounts:
+        - name: magento-mysql-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: magento-mysql-storage
+        persistentVolumeClaim:
+          claimName: magento-mysql-pvc
