@@ -32,13 +32,14 @@ data:
   vhost.conf: |
     map $cookie_XDEBUG_SESSION $my_fastcgi_pass {
       "" fastcgi_backend;
-      default fastcgi_backend_xdebug;
+      # default fastcgi_backend_xdebug;
+      default fastcgi_backend;
     }
 
     upstream fastcgi_backend {
-      # Variables:  FPM_HOST FPM_PORT
-      server magento-fpm:9000
+      server magento-app:9000;
     }
+
     # upstream fastcgi_backend_xdebug {
     #   server !XDEBUG_HOST!:!FPM_PORT!; # Variables: XDEBUG_HOST FPM_PORT
     # }
@@ -49,9 +50,11 @@ data:
 
       server_name _;
 
-      set $MAGE_ROOT /magento; # Variable: MAGENTO_ROOT
-      set $MAGE_MODE !MAGENTO_RUN_MODE!; # Variable: MAGENTO_RUN_MODE
-      set $MFTF_UTILS !MFTF_UTILS!; # Variable: MFTF_UTILS
+      set $MAGE_ROOT /magento;
+      # MAGE_MODE options: production or developer
+      set $MAGE_MODE developer;
+      # MFTF_UTILS options: 0 or !0
+      set $MFTF_UTILS 1;
 
       # Support for SSL termination.
       set $my_http "http";
@@ -71,7 +74,7 @@ data:
       index index.php;
       autoindex off;
       charset UTF-8;
-      client_max_body_size !UPLOAD_MAX_FILESIZE!; # Variable: UPLOAD_MAX_FILESIZE
+      client_max_body_size 64m;
       error_page 404 403 = /errors/404.php;
       #add_header "X-UA-Compatible" "IE=Edge";
       
