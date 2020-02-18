@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: magento-nginx-configmap
+  name: magento-nginx-config
   namespace: magento
 data:
   nginx.conf: |
@@ -29,18 +29,19 @@ data:
       include /etc/nginx/conf.d/*.conf;
     }
 
-  magento.conf: |
+  vhost.conf: |
     map $cookie_XDEBUG_SESSION $my_fastcgi_pass {
       "" fastcgi_backend;
       default fastcgi_backend_xdebug;
     }
 
     upstream fastcgi_backend {
-      server !FPM_HOST!:!FPM_PORT!; # Variables:  FPM_HOST FPM_PORT
+      # Variables:  FPM_HOST FPM_PORT
+      server magento-fpm:9000
     }
-    upstream fastcgi_backend_xdebug {
-      server !XDEBUG_HOST!:!FPM_PORT!; # Variables: XDEBUG_HOST FPM_PORT
-    }
+    # upstream fastcgi_backend_xdebug {
+    #   server !XDEBUG_HOST!:!FPM_PORT!; # Variables: XDEBUG_HOST FPM_PORT
+    # }
 
     server {
       listen 80;
@@ -48,7 +49,7 @@ data:
 
       server_name _;
 
-      set $MAGE_ROOT !MAGENTO_ROOT!; # Variable: MAGENTO_ROOT
+      set $MAGE_ROOT /magento; # Variable: MAGENTO_ROOT
       set $MAGE_MODE !MAGENTO_RUN_MODE!; # Variable: MAGENTO_RUN_MODE
       set $MFTF_UTILS !MFTF_UTILS!; # Variable: MFTF_UTILS
 
