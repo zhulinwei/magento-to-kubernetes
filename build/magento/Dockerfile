@@ -33,17 +33,4 @@ RUN echo "group = www-data" >> /usr/local/etc/php-fpm.conf
 RUN chown -R www-data:www-data /var/www/magento2
 
 
-# COPY etc/php-fpm.ini /usr/local/etc/php/conf.d/zz-magento.ini
-
-# ENV MAGENTO_ROOT /magento/app
-# ARG MAGENTO_VERSION=2.3.4
-
-# WORKDIR /magento/app
-
-# RUN wget -q "https://github.com/magento/magento2/archive/${MAGENTO_VERSION}.tar.gz" -O "/tmp/magento.tar.gz"
-# ADD /tmp/magento.tar.gz .
-# RUN ["chmod", "+x", "/docker-entrypoint.sh"]
-
-# ENTRYPOINT ["/docker-entrypoint.sh"]
-
 CMD ["php-fpm", "-F"]

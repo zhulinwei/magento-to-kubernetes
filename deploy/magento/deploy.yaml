@@ -18,9 +18,20 @@ spec:
       containers:
       - name: magento
         image: 295038636998.dkr.ecr.us-west-2.amazonaws.com/ecp-cafe/tony:magento2.3.4-1
+        lifecycle:
+          postStart: 
+            exec: 
+              command: ["pwd"]
+              # command: ["/bin/bash", "echo tony"]
+                      #- "pwd"
+                      #- "echo tony"
+                      # - "cp"
+                      # - "-r"
+                      # - "/var/www/magento2"
+                      # - "/magento"
         volumeMounts:
         - name: magento-app-stroage
-          mountPath: /var/www
+          mountPath: /magento
       volumes:
       - name: magento-app-stroage
         persistentVolumeClaim:
