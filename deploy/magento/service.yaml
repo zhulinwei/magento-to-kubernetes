@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: magento-app
+  namespace: magento
+  labels:
+    app: magento-app
+spec:
+  selector:
+    app: magento-app
+  ports:
+  - name: default-port
+    port: 9000
+    protocol: TCP
+

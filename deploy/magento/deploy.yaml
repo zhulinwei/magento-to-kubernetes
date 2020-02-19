@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: magento-app
+  namespace: magento
+  labels:
+    app: magento-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: magento-app
+  template:
+    metadata:
+      labels:
+        app: magento-app
+    spec:
+      containers:
+      - name: magento
+        image: 295038636998.dkr.ecr.us-west-2.amazonaws.com/ecp-cafe/tony:magento2.3.4-1
+        volumeMounts:
+        - name: magento-app-stroage
+          mountPath: /var/www
+      volumes:
+      - name: magento-app-stroage
+        persistentVolumeClaim:
+          claimName: magento-app-pvc
+
