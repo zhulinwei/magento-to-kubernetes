@@ -17,23 +17,34 @@ spec:
     spec:
       containers:
       - name: magento
-        image: 295038636998.dkr.ecr.us-west-2.amazonaws.com/ecp-cafe/tony:magento2.3.4-1
-        lifecycle:
-          postStart: 
-            exec: 
-              command: ["pwd"]
-              # command: ["/bin/bash", "echo tony"]
-                      #- "pwd"
-                      #- "echo tony"
-                      # - "cp"
-                      # - "-r"
-                      # - "/var/www/magento2"
-                      # - "/magento"
+        image: 295038636998.dkr.ecr.us-west-2.amazonaws.com/ecp-cafe/tony:magento2.3.4-11
         volumeMounts:
+        - name: magento-app-stroage
+          mountPath: /magento
+      - name: busybox
+        image: busybox:latest
+        command: ["tail", "-f", "/dev/null"]
+        volumeMounts:
+        - name: magento-app-stroage
+          mountPath: /data7
+      - name: magento-nginx
+        image: magento/magento-cloud-docker-nginx
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: magento-nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: magento-nginx-config
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: vhost.conf
         - name: magento-app-stroage
           mountPath: /magento
       volumes:
       - name: magento-app-stroage
-        persistentVolumeClaim:
-          claimName: magento-app-pvc
+        emptyDir: {}
+      - name: magento-nginx-config
+        configMap:
+          name: magento-nginx-config
+
 

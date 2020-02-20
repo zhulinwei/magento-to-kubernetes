@@ -10,6 +10,6 @@ spec:
     app: magento-app
   ports:
   - name: default-port
-    port: 9000
+    port: 80
     protocol: TCP
 

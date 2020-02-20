@@ -37,7 +37,8 @@ data:
     }
 
     upstream fastcgi_backend {
-      server magento-app:9000;
+      # server magento-app:9000;
+      server 127.0.0.1:9000;
     }
 
     # upstream fastcgi_backend_xdebug {
@@ -48,7 +49,7 @@ data:
       listen 80;
       listen 443 ssl;
 
-      server_name _;
+      server_name localhost;
 
       set $MAGE_ROOT /magento;
       # MAGE_MODE options: production or developer
@@ -77,6 +78,31 @@ data:
       client_max_body_size 64m;
       error_page 404 403 = /errors/404.php;
       #add_header "X-UA-Compatible" "IE=Edge";
+     
+      location ~* ^/setup($|/) {
+        root $MAGE_ROOT;
+        location ~ ^/setup/index.php {
+          fastcgi_pass   $my_fastcgi_pass;
+      
+          fastcgi_param  PHP_FLAG  "session.auto_start=off \n suhosin.session.cryptua=off";
+          fastcgi_param  PHP_VALUE "memory_limit=756M \n max_execution_time=600";
+          fastcgi_read_timeout 600s;
+          fastcgi_connect_timeout 600s;
+      
+          fastcgi_index  index.php;
+          fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+          include        fastcgi_params;
+        }
+      
+        location ~ ^/setup/(?!pub/). {
+          deny all;
+        }
+      
+        location ~ ^/setup/pub/ {
+          add_header X-Frame-Options "SAMEORIGIN";
+        }
+      }
+
       
       # Deny access to sensitive files
       location /.user.ini {
