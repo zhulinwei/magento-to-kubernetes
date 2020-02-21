@@ -21,12 +21,6 @@ spec:
         volumeMounts:
         - name: magento-app-stroage
           mountPath: /magento
-      - name: busybox
-        image: busybox:latest
-        command: ["tail", "-f", "/dev/null"]
-        volumeMounts:
-        - name: magento-app-stroage
-          mountPath: /data7
       - name: magento-nginx
         image: magento/magento-cloud-docker-nginx
         ports:
