@@ -7,9 +7,6 @@ ARG MAGENTO_VERSION=2.3.2-p2
 
 # set php.ini values 
 RUN sed -i "s/!PHP_MEMORY_LIMIT!/${PHP_MEMORY_LIMIT}/" /usr/local/etc/php/conf.d/zz-magento.ini 
-  # && sed -i "s/!MAGENTO_RUN_MODE!/${MAGENTO_RUN_MODE}/" /usr/local/etc/php-fpm.conf \
-  # && pecl install -o -f libsodium \
-  # && docker-php-ext-enable sodium
 
 RUN wget -q "https://github.com/magento/magento2/archive/${MAGENTO_VERSION}.tar.gz" -O "/tmp/magento.tar.gz"
 RUN wget -q "https://github.com/magento/magento2-sample-data/archive/${MAGENTO_VERSION}.tar.gz" -O "/tmp/magento-sample.tar.gz"
@@ -31,8 +28,6 @@ RUN cd /var/www/magento && /usr/local/bin/composer install
 RUN echo "user = www-data" >> /usr/local/etc/php-fpm.conf
 RUN echo "group = www-data" >> /usr/local/etc/php-fpm.conf
 
-# RUN chown -R www-data:www-data /var/www/magento2
-# CMD ["php-fpm", "-F"]
 COPY start.sh start.sh
 RUN chmod +x start.sh
 CMD ["sh", "start.sh"]  
