@@ -9,7 +9,7 @@ spec:
   selector:
     app: magento-app
   ports:
-  - name: default-port
+  - name: magento-nginx-port
     port: 80
     protocol: TCP
-
+  type: NodePort
