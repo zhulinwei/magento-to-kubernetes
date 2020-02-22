@@ -1,0 +1,57 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: magento-app-gateway
+  namespace: magento
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "your_sample.com"
+  - port:
+      number: 443
+      name: https
+      protocol: HTTP
+    hosts:
+    - "your_sample.com"
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: magento-app
+  namespace: magento
+spec:
+  host: magento-app
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 2048
+      http:
+        idleTimeout: 6m
+        http1MaxPendingRequests: 2048
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: magento-app
+  namespace: magento
+spec:
+  hosts:
+  - "your_sample.com"
+  gateways:
+  - magento-app-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        port:
+          number: 80
+        host: magento-app
+
