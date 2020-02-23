@@ -1,5 +1,26 @@
 # magento-to-kubernetes
 
+- [magento-to-kubernetes](#magento-to-kubernetes)
+  * [前言](#--)
+    + [基本要求](#----)
+    + [先决条件](#----)
+    + [可选条件](#----)
+  * [方案设计](#----)
+    + [工作流程](#----)
+    + [架构设计](#----)
+  * [方案详情](#----)
+    + [准备Nginx配置](#--nginx--)
+    + [部署Magento服务](#--magento--)
+      - [构建Magento镜像](#--magento--)
+      - [部署Magento应用](#--magento--)
+      - [暴露Magento端口](#--magento--)
+    + [部署MySQL数据库](#--mysql---)
+      - [存储敏感数据](#------)
+      - [部署MySQL应用](#--mysql--)
+      - [暴露MySQL端口](#--mysql--)
+    + [网关配置](#----)
+    + [初始化项目](#-----)
+
 ## 前言
 [Magento](https://magento.com)是一款国外流行的，基于PHP实现的电子商务平台，任何人都开源使用它免费的创建自己的在线商店。本教程将展示如何将Magento容器化并在Kubernetes上运行。
 
@@ -17,7 +38,7 @@
 ### 可选条件
 - 集群部署Istio组件，本教程仅使用Istio功能中的网关服务（没有安装Istio也可以通过ip:port的形式访问服务）
 
-## 设计方案
+## 方案设计
 
 ### 工作流程
 > 要运行PHP应用程序，首先需要理解Nginx与PHP-FPM的工作机制
@@ -43,71 +64,9 @@
 
 上图为了清晰地展示架构，将项目代码放在Code Container中，但在实际的工作中，我们其实可以将项目代码文件放入Nginx Container或者PHP-FPM Container中，减少打包构建工作。
 
-## 实践过程
+## 方案详情
 
-### 构建PHP-PFM镜像
-
-我们在这里为了方便起见，采用Magento官方提供的fpm镜像，并将Magento项目代码和fpm打包在同一个镜像中，镜像构建文件Dockerfile如下：
-
-```dockerfile
-FROM magento/magento-cloud-docker-php:7.2-fpm
-# 设置项目内存限制
-ENV PHP_MEMORY_LIMIT 2G
-# 设置Magento工作目录
-ENV MAGENTO_ROOT /magento
-# 设置Magento项目版本
-ARG MAGENTO_VERSION=2.3.2-p2
-
-# 设置php.ini参数
-RUN sed -i "s/!PHP_MEMORY_LIMIT!/${PHP_MEMORY_LIMIT}/" /usr/local/etc/php/conf.d/zz-magento.ini 
-
-# 拉取Magento项目代码和Sample数据
-RUN wget -q "https://github.com/magento/magento2/archive/${MAGENTO_VERSION}.tar.gz" -O "/tmp/magento.tar.gz"
-RUN wget -q "https://github.com/magento/magento2-sample-data/archive/${MAGENTO_VERSION}.tar.gz" -O "/tmp/magento-sample.tar.gz"
-
-# 解压并删除压缩包
-RUN tar xzf /tmp/magento.tar.gz -C /var/www/ \
-  && mv "/var/www/magento2-$MAGENTO_VERSION" /var/www/magento \
-  && tar xzf /tmp/magento-sample.tar.gz -C /var/www/magento/ magento2-sample-data-$MAGENTO_VERSION/ \
-  && cp -rp /var/www/magento/magento2-sample-data-$MAGENTO_VERSION/* /var/www/magento \
-  && rm -rf /var/www/magento/magento2-sample-data-$MAGENTO_VERSION \
-  && rm /tmp/magento-sample.tar.gz \
-  && rm /tmp/magento.tar.gz
-
-# 安装composer
-RUN curl -sS https://getcomposer.org/installer | php -dmemory_limit=-1 -- --install-dir=/usr/local/bin --filename=composer
-# 安装项目依赖
-RUN cd /var/www/magento && /usr/local/bin/composer install
-
-# 设置用户与分组
-RUN echo "user = www-data" >> /usr/local/etc/php-fpm.conf
-RUN echo "group = www-data" >> /usr/local/etc/php-fpm.conf
-
-COPY start.sh start.sh
-RUN chmod +x start.sh
-CMD ["sh", "start.sh"]  
-```
-为了能让后续Kubernetes提供挂载能力，将项目拷贝到挂载文件夹，故将以下内容放置start.sh脚本中，内容如下：
-```shell
-#!/bin/bash
-mkdir -p /magento
-# 将Magento项目文件拷贝到挂载文件夹中
-cp -a /var/www/magento/* /magento
-# 授权
-chown -R www-data:www-data /magento
-# 启动php-fpm
-php-fpm -F
-```
-**注意这个/magento文件夹，就是我们上图中提到的Code Volume，后续还会再强调**
-
-使用Docker进行打包和并将镜像推送到仓库中，命令如下：
-```shell
-docker build -t magento:latest build/
-docker tag magento:latest <your_docker_register_path>:<tag>
-docker push <your_docker_register_path>:<tag>
-```
-
-### 编写Nginx配置
+### 准备Nginx配置
 我们使用Magento官方提供的magento-cloud-docker-nginx作为我们的nginx镜像，但是配置还是需要提供的，包括nginx.conf和vhost.conf两个文件，我们都放在configmap中，内容如下：
 
 ```yaml
@@ -336,7 +295,7 @@ data:
       }
     }
 ```
-关于Nginx配置不做过多解释，详情自行学习[Nginx语法](https://www.nginx.com)，这里需要强调的是如果是在Web端初始化Magento项目，setup的配置不可缺：
+关于Nginx配置不做过多解释，详情自行学习[Nginx语法](https://www.nginx.com)，这里需要强调的是如果是在Web端初始化Magento项目，setup的配置不可缺，即注意以下内容：
 ```yaml
 location ~* ^/setup($|/) {
   root $MAGE_ROOT;
@@ -367,9 +326,75 @@ location ~* ^/setup($|/) {
 kubectl apply -f deploy/nginx/configmap.yaml
 ```
 
-### 部署Magento应用
+### 部署Magento服务
 
-我们将PHP-FMP镜像和Nginx镜像部署在同一个POD中，挂载Nginx配置和共享文件夹，内容如下：
+#### 构建Magento镜像
+
+我们在这里为了方便起见，采用Magento官方提供的fpm镜像，并将Magento项目代码和fpm打包在同一个镜像中，镜像构建文件Dockerfile如下：
+
+```dockerfile
+FROM magento/magento-cloud-docker-php:7.2-fpm
+# 设置项目内存限制
+ENV PHP_MEMORY_LIMIT 2G
+# 设置Magento工作目录
+ENV MAGENTO_ROOT /magento
+# 设置Magento项目版本
+ARG MAGENTO_VERSION=2.3.2-p2
+
+# 设置php.ini参数
+RUN sed -i "s/!PHP_MEMORY_LIMIT!/${PHP_MEMORY_LIMIT}/" /usr/local/etc/php/conf.d/zz-magento.ini 
+
+# 拉取Magento项目代码和Sample数据
+RUN wget -q "https://github.com/magento/magento2/archive/${MAGENTO_VERSION}.tar.gz" -O "/tmp/magento.tar.gz"
+RUN wget -q "https://github.com/magento/magento2-sample-data/archive/${MAGENTO_VERSION}.tar.gz" -O "/tmp/magento-sample.tar.gz"
+
+# 解压并删除压缩包
+RUN tar xzf /tmp/magento.tar.gz -C /var/www/ \
+  && mv "/var/www/magento2-$MAGENTO_VERSION" /var/www/magento \
+  && tar xzf /tmp/magento-sample.tar.gz -C /var/www/magento/ magento2-sample-data-$MAGENTO_VERSION/ \
+  && cp -rp /var/www/magento/magento2-sample-data-$MAGENTO_VERSION/* /var/www/magento \
+  && rm -rf /var/www/magento/magento2-sample-data-$MAGENTO_VERSION \
+  && rm /tmp/magento-sample.tar.gz \
+  && rm /tmp/magento.tar.gz
+
+# 安装composer
+RUN curl -sS https://getcomposer.org/installer | php -dmemory_limit=-1 -- --install-dir=/usr/local/bin --filename=composer
+# 安装项目依赖
+RUN cd /var/www/magento && /usr/local/bin/composer install
+
+# 设置用户与分组
+RUN echo "user = www-data" >> /usr/local/etc/php-fpm.conf
+RUN echo "group = www-data" >> /usr/local/etc/php-fpm.conf
+
+COPY start.sh start.sh
+RUN chmod +x start.sh
+CMD ["sh", "start.sh"]  
+```
+为了能让后续Kubernetes提供挂载能力，将项目拷贝到挂载文件夹，故将以下内容放置start.sh脚本中，内容如下：
+```shell
+#!/bin/bash
+mkdir -p /magento
+# 将Magento项目文件拷贝到挂载文件夹中
+cp -a /var/www/magento/* /magento
+# 授权
+chown -R www-data:www-data /magento
+# 启动php-fpm
+php-fpm -F
+```
+**注意这个/magento文件夹，就是我们上图中提到的Code Volume，后续还会再强调**
+
+使用Docker进行打包和并将镜像推送到仓库中，命令如下：
+```shell
+docker build -t magento:latest build/
+docker tag magento:latest <your_docker_register_path>:<tag>
+docker push <your_docker_register_path>:<tag>
+```
+
+
+
+#### 部署Magento应用
+
+我们将PHP-FMP镜像和Nginx镜像部署在同一个POD中，挂载Nginx配置和共享文件夹，内容如下：
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -421,7 +446,7 @@ spec:
 kubectl apply -f deploy/magento/deployment.yaml
 ```
 
-#### 暴露Magento应用端口
+#### 暴露Magento端口
 ```yaml
 apiVersion: v1
 kind: Service
@@ -558,7 +583,8 @@ spec:
 kubectl apply -f deploy/mysql/service.yaml
 ```
 
-### 配置网关
+### 网关配置
+
 > 如果你的集群没有安装Istio组件，可以跳过该节
 
 假如你自定义的域名是**your_sample.com**，你希望它能指向你的Magento应用，则需要配置Istio Gateway和Istio VirtualService文件，内容如下：
@@ -620,11 +646,12 @@ spec:
 ```shell
 kubectl apply -f deploy/magento/gateway.yaml
 ```
-### 初始化Magento项目
 
-**如果初始化的时间较长，别怕，正常，笔者花了六个小时才等到Magento初始化完成!**
+### 初始化项目
 
 如果你配置了网关，可以在浏览器中输入你自定义的域名your_sample.com；如果没有配置网关，则直接输入集群机器IP，看到以下页面则代表应用部署成功：
 ![magento](document/magento.png)
 
-点击『Agree and Setup Mangeto』进入下一步，输出MySQL数据库的配置完成项目初始化安装吧
+点击『Agree and Setup Mangeto』进入下一步，输出MySQL数据库的配置完成项目初始化安装吧。
+
+**如果初始化的时间较长，别怕，正常，笔者花了六个小时才等到Magento初始化完成!**
