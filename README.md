@@ -14,10 +14,25 @@
 - 拥有DockerHub账号，用于存放Docker镜像
 - 拥有Kubernetes集群，用于编排容器和部署应用
 
+### 可选条件
+- 集群部署Istio组件，本教程仅使用Istio功能中的网关服务（没有安装Istio也可以通过ip:port的形式访问服务）
 
-## 结构设计
+## 设计方案
 
-### PHP应用工作流程
+### 工作流程
 要运行PHP应用程序，需要理解Nginx与PHP-FPM的工作机制。对于静态文件，作为Web服务器的Nginx可以直接处理；当涉及到动态文件，如index.php时，Nginx会启动PHP解析器，PHP解析器按照指定的协议如FastCGI，将处理后的结果按照格式返回，而PHP-FPM就是FastCGI协议的实现。笔者将整个Web请求简单地概览如下：
+
 ![PHP Web Flow](document/php_web_flow.png)
 
+### 结构设计
+
+![PHP Container](document/php_container.png)
+
+- Code Volume：代码存储卷，为Nginx容器和PHP-FPM容器提供代码文件
+- Code Container：代码容器
+- Nginx Container：Nginx容器
+- PHP-FPM Container：PHP-FPM容器
+
+
+
+由于Nginx和PHP-FPM均需要
