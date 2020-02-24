@@ -22,7 +22,7 @@
     + [初始化项目](#初始化项目)
 
 ## 前言
-[Magento](https://magento.com)是一款国外流行的，基于PHP实现的电子商务平台，任何人都可以开源使用它免费的创建自己的在线商店。本教程将展示如何将Magento容器化并在Kubernetes上运行。
+[Magento](https://magento.com)是一款国外流行的，基于PHP实现的电子商务平台，任何人都可以使用它免费地创建自己的在线商店。本教程将展示如何将Magento容器化并在Kubernetes上运行。
 
 ### 基本要求
 - 对Nginx语法的基本了解
