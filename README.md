@@ -68,6 +68,7 @@
 
 ### 准备Nginx配置
 我们使用Magento官方提供的magento-cloud-docker-nginx作为我们的nginx镜像，但是配置还是需要提供的，包括nginx.conf和vhost.conf两个文件，我们都放在configmap中，详情请参考[nginx configmap yaml](/deploy/nginx/configmap.yaml)
+
 关于Nginx配置不做过多解释，这里需要强调的是如果是在Web端初始化Magento项目，setup的配置不可缺，即注意以下内容：
 ```yaml
 location ~* ^/setup($|/) {
