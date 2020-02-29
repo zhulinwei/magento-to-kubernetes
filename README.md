@@ -413,7 +413,7 @@ spec:
           number: 80
         host: magento-app
 ```
-```
+
 执行以下命令配置网关：
 ```shell
 kubectl apply -f deploy/magento/gateway.yaml
