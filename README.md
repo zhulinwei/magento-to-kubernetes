@@ -22,7 +22,7 @@
     + [初始化项目](#初始化项目)
 
 ## 前言
-[Magento](https://magento.com)是一款国外流行的，基于PHP实现的电子商务平台，任何人都开源使用它免费的创建自己的在线商店。本教程将展示如何将Magento容器化并在Kubernetes上运行。
+[Magento](https://magento.com)是一款国外流行的，基于PHP实现的电子商务平台，任何人都可以使用它免费地创建自己的在线商店。本教程将展示如何将Magento容器化并在Kubernetes上运行。
 
 ### 基本要求
 - 对Nginx语法的基本了解
@@ -36,7 +36,7 @@
 - 拥有Kubernetes集群，用于编排容器和部署应用
 
 ### 可选条件
-- 集群部署Istio组件，本教程仅使用Istio功能中的网关服务（没有安装Istio也可以通过ip:port的形式访问服务）
+- 集群部署Istio组件，本教程仅使用Istio功能中的网关服务（没有安装Istio也可以通过ip:port的形式访问应用）
 
 ## 方案设计
 
@@ -67,235 +67,9 @@
 ## 方案详情
 
 ### 准备Nginx配置
-我们使用Magento官方提供的magento-cloud-docker-nginx作为我们的nginx镜像，但是配置还是需要提供的，包括nginx.conf和vhost.conf两个文件，我们都放在configmap中，内容如下：
+我们使用Magento官方提供的magento-cloud-docker-nginx作为我们的nginx镜像，但是配置还是需要提供的，包括nginx.conf和vhost.conf两个文件，我们都放在configmap中，详情请参考[nginx configmap yaml](/deploy/nginx/configmap.yaml)
 
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: magento-nginx-config
-  namespace: magento
-data:
-  nginx.conf: |
-    worker_processes 2;
-    error_log /var/log/nginx/error.log debug;
-    pid /var/run/nginx.pid;
-    events {
-      # this should be equal to value of "ulimit -n"
-      # reference: https://www.digitalocean.com/community/tutorials/how-to-optimize-nginx-configuration
-      worker_connections 1048576;
-    }
-    http {
-      include /etc/nginx/mime.types;
-      default_type application/octet-stream;
-      log_format main
-        '$remote_addr - $remote_user [$time_local] "$request" '
-        '$status $body_bytes_sent "$http_referer" '
-        '"$http_user_agent" "$http_x_forwarded_for"';
-      access_log /var/log/nginx/access.log main;
-      sendfile on;
-      #tcp_nopush on;
-      keepalive_timeout 65;
-      #gzip on;
-      client_max_body_size 20M;
-      include /etc/nginx/conf.d/*.conf;
-    }
-  vhost.conf: |
-    map $cookie_XDEBUG_SESSION $my_fastcgi_pass {
-      "" fastcgi_backend;
-      # default fastcgi_backend_xdebug;
-      default fastcgi_backend;
-    }
-    upstream fastcgi_backend {
-      # server magento-app:9000;
-      server 127.0.0.1:9000;
-    }
-    # upstream fastcgi_backend_xdebug {
-    #   server !XDEBUG_HOST!:!FPM_PORT!; # Variables: XDEBUG_HOST FPM_PORT
-    # }
-    server {
-      listen 80;
-      listen 443 ssl;
-      server_name localhost;
-      set $MAGE_ROOT /magento;
-      # MAGE_MODE options: production or developer
-      set $MAGE_MODE developer;
-      # MFTF_UTILS options: 0 or !0
-      set $MFTF_UTILS 1;
-      # Support for SSL termination.
-      set $my_http "http";
-      set $my_ssl "off";
-      set $my_port "80";
-      if ($http_x_forwarded_proto = "https") {
-        set $my_http "https";
-        set $my_ssl "on";
-        set $my_port "443";
-      }
-      ssl_certificate /etc/nginx/ssl/magento.crt;
-      ssl_certificate_key /etc/nginx/ssl/magento.key;
-      root $MAGE_ROOT/pub;
-      index index.php;
-      autoindex off;
-      charset UTF-8;
-      client_max_body_size 64m;
-      error_page 404 403 = /errors/404.php;
-      #add_header "X-UA-Compatible" "IE=Edge";
-     
-      location ~* ^/setup($|/) {
-        root $MAGE_ROOT;
-        location ~ ^/setup/index.php {
-          fastcgi_pass   $my_fastcgi_pass;
-      
-          fastcgi_param  PHP_FLAG  "session.auto_start=off \n suhosin.session.cryptua=off";
-          fastcgi_param  PHP_VALUE "memory_limit=756M \n max_execution_time=600";
-          fastcgi_read_timeout 600s;
-          fastcgi_connect_timeout 600s;
-      
-          fastcgi_index  index.php;
-          fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
-          include        fastcgi_params;
-        }
-      
-        location ~ ^/setup/(?!pub/). {
-          deny all;
-        }
-      
-        location ~ ^/setup/pub/ {
-          add_header X-Frame-Options "SAMEORIGIN";
-        }
-      }
-      
-      # Deny access to sensitive files
-      location /.user.ini {
-        deny all;
-      }
-      location / {
-        try_files $uri $uri/ /index.php$is_args$args;
-      }
-      location /pub/ {
-        location ~ ^/pub/media/(downloadable|customer|import|theme_customization/.*\.xml) {
-          deny all;
-        }
-        alias $MAGE_ROOT/pub/;
-        add_header X-Frame-Options "SAMEORIGIN";
-      }
-      location /static/ {
-        if ($MAGE_MODE = "production") {
-          expires max;
-        }
-        # Remove signature of the static files that is used to overcome the browser cache
-        location ~ ^/static/version {
-          rewrite ^/static/(version\d*/)?(.*)$ /static/$2 last;
-        }
-        location ~* \.(ico|jpg|jpeg|png|gif|svg|js|css|swf|eot|ttf|otf|woff|woff2|json)$ {
-          add_header Cache-Control "public";
-          add_header X-Frame-Options "SAMEORIGIN";
-          expires +1y;
-          if (!-f $request_filename) {
-            rewrite ^/static/(version\d*/)?(.*)$ /static.php?resource=$2 last;
-          }
-        }
-        location ~* \.(zip|gz|gzip|bz2|csv|xml)$ {
-          add_header Cache-Control "no-store";
-          add_header X-Frame-Options "SAMEORIGIN";
-          expires    off;
-          if (!-f $request_filename) {
-            rewrite ^/static/(version\d*/)?(.*)$ /static.php?resource=$2 last;
-          }
-        }
-        if (!-f $request_filename) {
-          rewrite ^/static/(version\d*/)?(.*)$ /static.php?resource=$2 last;
-        }
-        add_header X-Frame-Options "SAMEORIGIN";
-      }
-      location /media/ {
-        try_files $uri $uri/ /get.php$is_args$args;
-        location ~ ^/media/theme_customization/.*\.xml {
-          deny all;
-        }
-        location ~* \.(ico|jpg|jpeg|png|gif|svg|js|css|swf|eot|ttf|otf|woff|woff2)$ {
-          add_header Cache-Control "public";
-          add_header X-Frame-Options "SAMEORIGIN";
-          expires +1y;
-          try_files $uri $uri/ /get.php$is_args$args;
-        }
-        location ~* \.(zip|gz|gzip|bz2|csv|xml)$ {
-          add_header Cache-Control "no-store";
-          add_header X-Frame-Options "SAMEORIGIN";
-          expires    off;
-          try_files $uri $uri/ /get.php$is_args$args;
-        }
-        add_header X-Frame-Options "SAMEORIGIN";
-      }
-      location /media/customer/ {
-        deny all;
-      }
-      location /media/downloadable/ {
-        deny all;
-      }
-      location /media/import/ {
-        deny all;
-      }
-      
-      location /errors/ {
-        location ~* \.xml$ {
-          deny all;
-        }
-      }
-      # PHP entry point for main application
-      location ~ ^/(index|get|static|errors/report|errors/404|errors/503|health_check)\.php$ {
-        try_files $uri =404;
-        fastcgi_pass   $my_fastcgi_pass;
-        fastcgi_buffers 1024 4k;
-        fastcgi_param  PHP_FLAG  "session.auto_start=off \n suhosin.session.cryptua=off";
-        fastcgi_param  PHP_VALUE "memory_limit=768M \n max_execution_time=18000";
-        fastcgi_read_timeout 600s;
-        fastcgi_connect_timeout 600s;
-        fastcgi_param  MAGE_MODE $MAGE_MODE;
-        # Magento uses the HTTPS env var to detrimine if it is using SSL or not.
-        fastcgi_param  HTTPS $my_ssl;
-        fastcgi_index  index.php;
-        fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
-        include        fastcgi_params;
-      }
-      location ~* ^/dev/tests/acceptance/utils($|/) {
-        root $MAGE_ROOT;
-        location ~ ^/dev/tests/acceptance/utils/command.php {
-          if ($MFTF_UTILS = 0) {
-              return 405;
-          }
-          fastcgi_pass   $my_fastcgi_pass;
-          fastcgi_index  index.php;
-          fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
-          include        fastcgi_params;
-        }
-      }
-      gzip on;
-      gzip_disable "msie6";
-      gzip_comp_level 6;
-      gzip_min_length 1100;
-      gzip_buffers 16 8k;
-      gzip_proxied any;
-      gzip_types
-        text/plain
-        text/css
-        text/js
-        text/xml
-        text/javascript
-        application/javascript
-        application/x-javascript
-        application/json
-        application/xml
-        application/xml+rss
-        image/svg+xml;
-      gzip_vary on;
-      # Banned locations (only reached if the earlier PHP entry point regexes don't match)
-      location ~* (\.php$|\.htaccess$|\.git) {
-        deny all;
-      }
-    }
-```
-关于Nginx配置不做过多解释，详情自行学习[Nginx语法](https://www.nginx.com)，这里需要强调的是如果是在Web端初始化Magento项目，setup的配置不可缺，即注意以下内容：
+关于Nginx配置不做过多解释，这里需要强调的是如果是在Web端初始化Magento项目，setup的配置不可缺，即注意以下内容：
 ```yaml
 location ~* ^/setup($|/) {
   root $MAGE_ROOT;
@@ -389,8 +163,6 @@ docker build -t magento:latest build/
 docker tag magento:latest <your_docker_register_path>:<tag>
 docker push <your_docker_register_path>:<tag>
 ```
-
-
 
 #### 部署Magento应用
 
@@ -641,7 +413,7 @@ spec:
           number: 80
         host: magento-app
 ```
-```
+
 执行以下命令配置网关：
 ```shell
 kubectl apply -f deploy/magento/gateway.yaml
