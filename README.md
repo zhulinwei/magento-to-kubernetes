@@ -52,7 +52,7 @@
 ### 架构设计
 我们来看一下整个项目的架构设计，如图：
 
-![PHP Container](document/php_container_layoyt.png)
+![PHP Container](document/php_container_layout.png)
 
 其中各个模块的作用如下：
 - Gateway：网关，对外暴露端口提供服务
